@@ -35,16 +35,25 @@ The keyword section contains all the keywords in the dictionary, divided into bl
 
 | `keyword_sect` | Length|      |
 |----------------|--|------|
-| `num_blocks`   | 8 bytes |Number of items in key_blocks. Big-endian. |
-| `num_entries`  | 8 bytes | Total number of keywords. Big-endian. |
-| `key_index_decomp_len` | 8 bytes | Number of bytes in decompressed version of key_index. Big-endian.  |
-| `key_index_comp_len`   | 8 bytes | Number of bytes in compressed version of key_index (including the `comp_type` and `checksum` parts). Big-endian. |
-| `key_blocks_len`       | 8 bytes | Total number of bytes taken up by key_blocks. Big-endian. |
-| `checksum`             | 4 bytes | ADLER32 checksum of the preceding 40 bytes. Big-endian. |
+| `num_blocks`   | 8 bytes |Number of items in key_blocks. Big-endian. Possibly encrypted, see below. |
+| `num_entries`  | 8 bytes | Total number of keywords. Big-endian. Possibly encrypted, see below. |
+| `key_index_decomp_len` | 8 bytes | Number of bytes in decompressed version of key_index. Big-endian. Possibly encrypted, see below. |
+| `key_index_comp_len`   | 8 bytes | Number of bytes in compressed version of key_index (including the `comp_type` and `checksum` parts). Big-endian. Possibly encrypted, see below. |
+| `key_blocks_len`       | 8 bytes | Total number of bytes taken up by key_blocks. Big-endian. Possibly encrypted, see below. |
+| `checksum`             | 4 bytes | ADLER32 checksum of the preceding 40 bytes. If those are encrypted, it is the checksum of the decrypted version. Big-endian. |
 | `key_index`            | varying | The keyword index, compressed and possibly encrypted. See below. |
 | `key_blocks[0]`         | varying | A compressed block containing keywords, compressed. See below.  |
 | ...                    |    ...  | ...|
 | `key_blocks[num_blocks-1]`         | varying |... |
+
+## Encryption:
+
+If the parameter `Encrypted` in the header has the lowest bit set (i.e. `Encrypted | 1` is nonzero), then the 40-byte block from `num_blocks` are encrypted. The encryption used is Salsa20/8 (Salsa20 with 8 rounds instead of 20). The parameters are:
+
+* Key length: 128 bits
+* IVs length: 64 bits.
+* Ivs: all zeros (i.e. "\x00\x00\x00\x00\x00\x00\x00\x00").
+* Key: `RIPEMD128(encryption_key)`, where `encryption_key` is the dictionary password specified on creation of the MdxDocument.
 
 ## Keyword index
 
