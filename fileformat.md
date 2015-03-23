@@ -144,6 +144,6 @@ Various data blocks are compressed using the same scheme. These all look like th
 
 The compression type can be indicated by `comp_type`. There are three options:
 
- * If `comp_type` is `'\x00\x00\x00\x00'`, then no compression is applied at all, and `compressed_data` is equal to `data`.
- * If `comp_type` is `'\x00\x00\x00\x01'`, LZO compression is used.
- * If `comp_type` is `'\x00\x00\x00\x02'`, zlib compression is used. It so happens that the zlib compression format appends an ADLER32 checksum, so in this case, `checksum` will be equal to the last four bytes of `compressed_data`.
+ * If `comp_type` is `'\x02\x00\x00\x00'`, then no compression is applied at all, and `compressed_data` is equal to `data`.
+ * If `comp_type` is `'\x01\x00\x00\x00'`, LZO compression is used.
+ * If `comp_type` is `'\x00\x00\x00\x00'`, zlib compression is used. It so happens that the zlib compression format appends an ADLER32 checksum, so in this case, `checksum` will be equal to the last four bytes of `compressed_data`.
