@@ -4,7 +4,7 @@
 """
     pureSalsa20.py -- a pure Python implementation of the Salsa20 cipher, ported to Python 3
 
-    v4.0: Did a quick-and-dirty port to Python 3. Original comments follow below:
+    v4.0: Added Python 3 support, dropped support for Python <= 2.5.
     
     // zhansliu
 		
@@ -167,7 +167,14 @@
     February, 2010
 """
 import sys
-assert(sys.version_info >= (3, 0))
+assert(sys.version_info >= (2, 6))
+
+if sys.version_info >= (3,):
+	integer_types = (int,)
+	python3 = True
+else:
+	integer_types = (int, long)
+	python3 = False
 
 from struct import Struct
 little_u64 = Struct( "<Q" )      #    little-endian 64-bit unsigned.
@@ -222,7 +229,7 @@ class Salsa20(object):
 
 
     def setCounter( self, counter ):
-        assert( type(counter) == int )
+        assert( type(counter) in integer_types )
         assert( 0 <= counter < 1<<64 ), "counter < 0 or >= 2**64"
         ctx = self.ctx
         ctx[ 8],ctx[ 9] = little2_i32.unpack( little_u64.pack( counter ) )
@@ -246,7 +253,10 @@ class Salsa20(object):
             self.setCounter( ( self.getCounter() + 1 ) % 2**64 )
             # Stopping at 2^70 bytes per nonce is user's responsibility.
             for j in range( min( 64, lendata - i ) ):
-                munged[ i+j ] = data[ i+j ] ^ h[j]
+                if python3:
+                    munged[ i+j ] = data[ i+j ] ^ h[j]
+                else:
+                    munged[ i+j ] = ord(data[ i+j ]) ^ ord(h[j])
 
         self._lastChunk64 = not lendata % 64
         return bytes(munged)
