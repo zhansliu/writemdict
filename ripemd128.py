@@ -38,10 +38,10 @@ def padandsplit(message):
 	# returns a two-dimensional array X[i][j] of 32-bit integers, where j ranges
 	# from 0 to 16.
 	# First pads the message to length in bytes is congruent to 56 (mod 64), 
-	# (using 0x80 as first byte), which is added even if the message is already 
-	# of length congruent to 56 (mod 64), then adds the little-endian 64-bit
-	# representation of the original length. Then splits this up into 64-byte
-	# blocks, which are further parsed as 32-bit integers.
+	# by first adding a byte 0x80, and then padding with 0x00 bytes until the
+	# message length is congruent to 56 (mod 64). Then adds the little-endian
+	# 64-bit representation of the original length. Finally, splits the result
+	# up into 64-byte blocks, which are further parsed as 32-bit integers.
 	origlen = len(message)
 	padlength = 64 - ((origlen - 56) % 64) #minimum padding is 1!
 	message += b"\x80"
@@ -94,18 +94,14 @@ def ripemd128(message):
 		for j in range(64):
 			T = rol(s[j], add(A, f(j,B,C,D), X[i][r[j]], K(j)))
 			(A,D,C,B) = (D,C,B,T)
-			#print("round {0}".format(j))
 			T = rol(sp[j], add(Ap, f(63-j,Bp,Cp,Dp), X[i][rp[j]], Kp(j)))
-			#print(Ap, f(63-j,Bp,Cp,Dp), X[i][rp[j]], Kp(j))
 			(Ap,Dp,Cp,Bp)=(Dp,Cp,Bp,T)
-			#print((A,B,C,D,Ap,Bp,Cp,Dp))
 		T = add(h1,C,Dp)
 		h1 = add(h2,D,Ap)
 		h2 = add(h3,A,Bp)
 		h3 = add(h0,B,Cp)
 		h0 = T
-		
-		#print((h0,h1,h2,h3))
+	
 	
 	return struct.pack("<LLLL",h0,h1,h2,h3)
 
