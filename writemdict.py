@@ -51,7 +51,7 @@ def encrypt_key(dict_key, email):
 	dict_key and email should be of type bytes (representing ascii strings), and outfile should be a file
 	open for writing in text mode.
 	
-	Returns a string of 32 hexadecimal digits. This should be place in a file of its own, with
+	Returns a string of 32 hexadecimal digits. This should be placed in a file of its own, with
 	the same name and location as the mdx file but the extension changed to '.key'. """
 	
 	email_digest = ripemd128(email)
@@ -78,7 +78,8 @@ class MDictWriter:
 							 encoding="utf8",
 							 compression_type=2,
 							 version="2.0",
-							 encrypt_key = None):
+							 encrypt_key = None,
+							 user_email = None):
 		"""
 		Prepares the records. A subsequent call to write() writes 
 		the mdx file.
@@ -97,6 +98,10 @@ class MDictWriter:
 		
 		encrypt_key should be a bytes object, containing the dictionary key. If encrypt_key is None,
 			no encryption will be applied. Usually, encrypt_key will be an ASCII string.
+			
+		user_email will be a bytes object. If it is not None, encrypt_key will be written in
+		encrypted form into the dictionary header. The file can then be opened by
+		anyone who has set their email (in the MDict client) to this value. Only makes sense if encrypt_key is not None. 
 		"""
 
 		self._num_entries = len(d)
@@ -106,6 +111,7 @@ class MDictWriter:
 		self._encrypt_index = encrypt_index
 		self._encrypt = (encrypt_key is not None)
 		self._encrypt_key = encrypt_key
+		self._user_email = user_email
 		self._compression_type = compression_type
 		encoding = encoding.lower()
 		if encoding in ["utf8", "utf-8"]:
@@ -140,7 +146,7 @@ class MDictWriter:
 		
 		where:
 		  e.key: encoded version of the key, not null-terminated
-			e.key_null: encoded version of the key, null-terminated
+		  e.key_null: encoded version of the key, null-terminated
 		  e.key_len: the length of the key, in either bytes or 2-byte units, not counting the null character
 			        (as required by the MDX format in the keyword index)
 		  e.offset: the cumulative sum of len(record_null) for preceding records
@@ -227,6 +233,8 @@ class MDictWriter:
 			if self._encrypt_index:
 				self._keyb_index = _mdx_encrypt(self._keyb_index)
 			self._keyb_index_comp_size = len(self._keyb_index)
+		elif self._encrypt_index:
+			raise ParameterError("Key index encryption not supported in version 1.2")
 		else:
 			self._keyb_index = decomp_data
 	
@@ -298,8 +306,6 @@ class MDictWriter:
 		for b in self._record_blocks:
 			outfile.write(b.get_block())
 		    
-   
-	
 	def write(self, outfile):
 		"""
 		Write the mdx file to outfile.
@@ -319,6 +325,11 @@ class MDictWriter:
 		if self._encrypt:
 			encrypted = encrypted | 1
 		
+		if self._encrypt and self._user_email:
+			regcode = encrypt_key(self._encrypt_key, self._user_email)
+		else:
+			regcode = ""
+		
 		header_string = (
 		"""<Dictionary """
 		"""GeneratedByEngineVersion="{version}" """ 
@@ -333,13 +344,15 @@ class MDictWriter:
         """Description="{description}" """
         """Title="{title}" """
         """DataSourceFormat="106" """
-		"""StyleSheet=""/>\r\n\x00""").format(
+		"""StyleSheet="" """
+		"""RegCode="{regcode}"/>\r\n\x00""").format(
 		    version = self._version,
 		    encrypted = encrypted,
 		    encoding = self._encoding, 
 		    date = datetime.date.today(), 
 		    description=escape(self._description, quote=True),
-		    title=escape(self._title, quote=True)
+		    title=escape(self._title, quote=True),
+		    regcode=regcode
 		    ).encode("utf_16_le")
 		f.write(struct.pack(">L", len(header_string)))
 		f.write(header_string)

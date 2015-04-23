@@ -68,7 +68,7 @@ writer = MDictWriter(d, "Version 1.2 UTF-16 test", "This dictionary tests versio
 writer.write(outfile)
 outfile.close()
 
-# encryption test
+# encryption test, external key file
 outfile = open("testoutput/test_enc_abc.mdx", "wb")
 writer = MDictWriter(d, "Encryption test", "This dictionary tests encryption", encoding="utf8", version="2.0", encrypt_key=b"abc")
 writer.write(outfile)
@@ -77,3 +77,10 @@ key = encrypt_key(b"abc", "example@example.com".encode("ascii"))
 keyfile = open("testoutput/test_enc_abc.key", "w", encoding="ascii")
 keyfile.write(key)
 keyfile.close()
+
+# encryption test, key supplied with dictionary
+outfile = open("testoutput/test_enc_included.mdx", "wb")
+writer = MDictWriter(d, "Encryption test", "This dictionary tests encryption, with key supplied in dictionary header", encoding="utf8", version="2.0", encrypt_key=b"abc", user_email="example@example.com".encode("ascii"))
+writer.write(outfile)
+outfile.close()
+
