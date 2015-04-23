@@ -14,7 +14,7 @@ The basic file structure is a follows:
 
 | MDX File       |            |
 |----------------|------------|
-| `header_sect`       | Header section. See "Header Section" below.  |
+| `header_sect`  | Header section. See "Header Section" below.  |
 | `keyword_sect` | Keyword section. See "Keyword Section" below. |
 | `record_sect`  | Record section. See "Record Section" below.  | 
 
