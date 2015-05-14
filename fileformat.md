@@ -1,6 +1,6 @@
 # Introduction
 
-This is a description of the MDX file format, used by the [MDict](http://www.octopus-studio.com/product.en.htm) dictionary software. The software is not open-source, nor is the file format openly specified, so the following description is based on reverse-engineering, and is likely incomplete and inaccurate in its details.
+This is a description of version 2.0 of the MDX file format, used by the [MDict](http://www.octopus-studio.com/product.en.htm) dictionary software. The software is not open-source, nor is the file format openly specified, so the following description is based on reverse-engineering, and is likely incomplete and inaccurate in its details.
 
 Most of the information comes from https://bitbucket.org/xwang/mdict-analysis. While xwang mostly focuses on being able to read this unknown format, I have added details that are necessary to also write MDX files.
 
@@ -28,6 +28,41 @@ The basic file structure is a follows:
 
 The `header_str` consists of a single, XML tag `dictionary`, with various attributes. An example is (newlines added for clarity)
 
+    <Dictionary 
+    GeneratedByEngineVersion="2.0" 
+    RequiredEngineVersion="2.0" 
+    Encrypted="2" 
+    Encoding="UTF8"
+    Format="Html"
+    CreationDate="2015-01-01"
+    Compact="No"
+    Compat="No"
+    KeyCaseSensitive="No"
+    Description="This is a <i>test dictionary</i>."
+    Title="My dictionary"
+    DataSourceFormat="106"
+    StyleSheet=""
+    RegCode="0102030405060708090A0B0C0D0E0F"/>
+
+The meaning of the attributes are explained below:
+
+| Attribute | Description |
+|-----------|-------------|
+|`GeneratedByEngineVersion`| The version of the file format. This document describes version 2.0. Apart from this, version 1.2 is also possible.|
+|`RequiredEngineVersion` | Presumably the lowest format version compatible with this version. |
+|`Encrypted` | An integer between 0 and 3 (inclusive). If the lower bit is set, indicates that the first part of the keyword section is encrypted, as described in the section [Keyword header encryption](#keyword-header-encryption). If the upper bit is set, indicates that the keyword index is encrypted, using the scheme described in [Keyword index encryption](#keyword-index-encryption). |
+|`Encoding`| The encoding used for text in the document. Possible values are "UTF-8", "UTF-16" (uses little-endian encoding), "GBK", and "Big5". |
+|`Format`| The format of the dictionary entry texts. Possible values include "Html" and "Text". |
+|`CreationDate` | The date the dictionary was created. |
+|`Compact` | If this is "Yes", indicates the dictionary entries is in an Mdict-specific compact format, where certain string
+are replaced according to the scheme specified in `StyleSheet`. See the documentation for the official MdxBuilder client for details. |
+|`Compat` | Appears to be a typo for `Compact`, which certain versions of the official Mdict client look for instead of `Compact`. |
+|`KeyCaseSensitive` | Indicates to the dictionary reader whether or not keys should be treated in a case-insensitive manner. |
+|`Description` | A description of the dictionary, which appears as the ":about" page in the official MDict client. |
+|`Title` | The title of the dictionary. |
+|`DataSourceFormat` | Unknown. |
+|`StyleSheet` | Used in conjunction with the `Compact` option. See the documentation for the official MdxBuilder client for details. |
+|`RegCode` | When keyword header encryption is used (see [Keyword header encryption](#keyword-header-encryption)), this is one way to deliver the encrypted key. In this case, this is a string consisting of 32 hexadecimal digits. |
 
 # Keyword Section
 
@@ -46,18 +81,32 @@ The keyword section contains all the keywords in the dictionary, divided into bl
 | ...                    |    ...  | ...|
 | `key_blocks[num_blocks-1]`         | varying |... |
 
-## Encryption:
+## Keyword header encryption:
 
-If the parameter `Encrypted` in the header has the lowest bit set (i.e. `Encrypted | 1` is nonzero), then the 40-byte block from `num_blocks` are encrypted. The encryption used is Salsa20/8 (Salsa20 with 8 rounds instead of 20). The parameters are:
+If the parameter `Encrypted` in the header has the lowest bit set (i.e. `Encrypted | 1` is nonzero), then the 40-byte block from `num_blocks` are encrypted. The encryption used is Salsa20/8 (Salsa20 with 8 rounds instead of 20). In pseudo-Python:
 
-* Key length: 128 bits
-* IVs length: 64 bits.
-* Ivs: all zeros (i.e. "\x00\x00\x00\x00\x00\x00\x00\x00").
-* Key: `RIPEMD128(encryption_key)`, where `encryption_key` is the dictionary password specified on creation of the MdxDocument.
+    def encrypt(message, key):
+        salsa20_8_init(key_length = 128, #128 bits
+           iv_length = 64, # 64 bits
+           ivs = b"\0\0\0\0\0\0\0\0"), #64 bits of zeros)
+        return salsa20_8_encrypt(message, key)
+
+    encrypted_block = encrypt(unencrypted_block, key=ripemd128(encryption_key))
+
+Here, `encryption_key` is the dictionary password specified on creation of the dictionary.
+
+This `encryption_key` is not distributed directly. Instead it is further encrypted, using an email address that the end user enters into his or her MDict client:
+
+    reg_code = encrypt(ripemd128(encryption_key), ripemd128(user_email))
+
+The 128-bit `reg_code` is then distributed to the user. This can be done in two ways:
+
+* If the MDX file is called `dictionary.mdx`, the dictionary reader should look for a file called `dictionary.key` in the same directory, which contains `reg_code` as a 32-digit hexadecimal string.
+* Otherwise, `reg_code` can be included in the header of the MDX file, as the attribute `RegCode`.
 
 ## Keyword index
 
-The keyword index lists some basic data about the key blocks. It it compressed (see "Compression"), and possibly encrypted (see "Keyword index encryption"). After decompression and decryption, it looks like this
+The keyword index lists some basic data about the key blocks. It it compressed (see "Compression"), and possibly encrypted (see "Keyword index encryption"). After decompression and decryption, it looks like this:
 
 | `decompress(keyword_sect)` | Length |  |
 |----------------------------|--|----|
