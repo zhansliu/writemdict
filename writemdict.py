@@ -24,7 +24,6 @@ def _mdx_compress(data, compression_type=2):
 		return header + zlib.compress(data)
 	elif compression_type == 1:
 		if HAVE_LZO:
-			print(header+lzo.compress(data)[5:])
 			return header + lzo.compress(data)[5:] #python-lzo adds a 5-byte header.
 		else:
 			raise NotImplementedError()
