@@ -40,6 +40,7 @@ except ImportError:
 	HAVE_LZO = False
 
 class ParameterError(Exception):
+	### Raised when some parameter to MdxWriter is invalid or uninterpretable.
 	pass
 
 def _mdx_compress(data, compression_type=2):
@@ -79,9 +80,10 @@ def _salsa_encrypt(plaintext, dict_key):
 	s20 = Salsa20(key=encrypt_key,IV=b"\x00"*8,rounds=8)
 	return s20.encryptBytes(plaintext)
 
-def hexdump(bytes_blob):
-	# Returns a hexadecimal string
-	# bytes_blob is a bytes object. 
+def _hexdump(bytes_blob):
+	# Returns a hexadecimal representation of bytes_blob, as a (unicode) string.
+	#
+	# bytes_blob should have type bytes.
 	
 	# In Python 2.6+, bytes is an alias for str, and indexing into a bytes
 	# object gives a string of length 1.
@@ -107,10 +109,14 @@ def encrypt_key(dict_key, email):
 	
 	s20 = Salsa20(key=email_digest,IV=b"\x00"*8,rounds=8)
 	output_key = s20.encryptBytes(dict_key_digest)
-	return hexdump(output_key)
+	return _hexdump(output_key)
 	
 
-class OffsetTableEntry(object):
+class _OffsetTableEntry(object):
+	# Each OffsetTableEntry represents one key/record pair of the dictionary.
+	# In addition to the values themselves, it contains information about
+	# the offset at which this entry will be placed (i.e. the total length
+	# of records before it) which is required by the MDX format.
 	def __init__(self, key, key_null, key_len, offset, record_null):
 		self.key = key
 		self.key_null = key_null
@@ -190,18 +196,17 @@ class MDictWriter(object):
 		self._build_recordb_index()
 		
 	def _build_offset_table(self,d):
-		""" Sets self._offset_table to a table of entries OffsetTableEntry objects e.
-		
-		where:
-		  e.key: encoded version of the key, not null-terminated
-		  e.key_null: encoded version of the key, null-terminated
-		  e.key_len: the length of the key, in either bytes or 2-byte units, not counting the null character
-			        (as required by the MDX format in the keyword index)
-		  e.offset: the cumulative sum of len(record_null) for preceding records
-		  e.record_null: encoded version of the record, null-terminated
-		
-		Also sets self._total_record_len to the total length of all record fields.
-		"""
+		# Sets self._offset_table to a table of entries _OffsetTableEntry objects e.
+		#
+		# where:
+		#  e.key: encoded version of the key, not null-terminated
+		#  e.key_null: encoded version of the key, null-terminated
+		#  e.key_len: the length of the key, in either bytes or 2-byte units, not counting the null character
+		#        (as required by the MDX format in the keyword index)
+		#  e.offset: the cumulative sum of len(record_null) for preceding records
+		#  e.record_null: encoded version of the record, null-terminated
+		#
+		# Also sets self._total_record_len to the total length of all record fields.
 		items = list(d.items())
 		items.sort(key=operator.itemgetter(0))
 		
@@ -212,7 +217,7 @@ class MDictWriter(object):
 			key_null = (key+"\0").encode(self._python_encoding)
 			key_len = len(key_enc) // self._encoding_length
 			record_null = (record+"\0").encode(self._python_encoding) 
-			self._offset_table.append(OffsetTableEntry(
+			self._offset_table.append(_OffsetTableEntry(
 			    key=key_enc,
 					key_null=key_null,
 					key_len=key_len,
@@ -222,12 +227,13 @@ class MDictWriter(object):
 		self._total_record_len = offset
 	
 	def _split_blocks(self, block_type):
-		"""
-		Returns a list of MdxBlock, where the decompressed size of each block is (as
-		far as practicable) less than self._block_size.
-		
-		block_type should be a subclass of MdxBlock, i.e. either MdxRecordBlock or 
-		MdxKeyBlock."""
+		# Split either the records or the keys into blocks for compression.
+		# 
+		# Returns a list of _MdxBlock, where the decompressed size of each block is (as
+		# far as practicable) less than self._block_size.
+		#
+		# block_type should be a subclass of _MdxBlock, i.e. either _MdxRecordBlock or 
+		# _MdxKeyBlock.
 		
 		this_block_start = 0
 		cur_size = 0
@@ -260,19 +266,17 @@ class MDictWriter(object):
 		return blocks
 		
 	def _build_key_blocks(self):
-		""" Sets self._key_blocks to a list of MdxKeyBlocks."""
-		self._key_blocks = self._split_blocks(MdxKeyBlock)
+		# Sets self._key_blocks to a list of _MdxKeyBlocks.
+		self._key_blocks = self._split_blocks(_MdxKeyBlock)
 	
 	def _build_record_blocks(self):
-		self._record_blocks = self._split_blocks(MdxRecordBlock)
+		self._record_blocks = self._split_blocks(_MdxRecordBlock)
 		
 	def _build_keyb_index(self):
-		""" 
-		Sets self._keyb_index to a bytes object, containing the index of key blocks, in
-		a format suitable for direct writing to the file.
-		
-		Also sets self._keyb_index_comp_size and self._keyb_index_decomp_size.
-		"""
+		# Sets self._keyb_index to a bytes object, containing the index of key blocks, in
+		# a format suitable for direct writing to the file.
+		#
+		# Also sets self._keyb_index_comp_size and self._keyb_index_decomp_size.
 		
 		decomp_data = b"".join(b.get_index_entry() for b in self._key_blocks)
 		self._keyb_index_decomp_size = len(decomp_data)
@@ -287,24 +291,21 @@ class MDictWriter(object):
 			self._keyb_index = decomp_data
 	
 	def _build_recordb_index(self):
-		""" 
-		Sets self._recordb_index to a bytes object, containing the index of key blocks,
-		in a format suitable for direct writing to the file.
+		# Sets self._recordb_index to a bytes object, containing the index of key blocks,
+		# in a format suitable for direct writing to the file.
 		
-		Also sets self._recordb_index_size.
-		"""
+		# Also sets self._recordb_index_size.
 		
 		self._recordb_index = b"".join(
 		    (b.get_index_entry() for b in self._record_blocks))
 		self._recordb_index_size = len(self._recordb_index)
 	
 	def _write_key_sect(self, outfile):
-		""" 
-		Writes the key section header, key block index, and all the key blocks to
-		outfile.
+		# Writes the key section header, key block index, and all the key blocks to
+		# outfile.
 		
-		outfile: a file-like object, opened in binary mode.
-		"""
+		# outfile: a file-like object, opened in binary mode.
+		
 		keyblocks_total_size = sum(len(b.get_block()) for b in self._key_blocks)
 		if self._version == "2.0":
 			preamble = struct.pack(b">QQQQQ",
@@ -333,12 +334,11 @@ class MDictWriter(object):
 			outfile.write(b.get_block())
 			
 	def _write_record_sect(self, outfile):
-		""" 
-		Writes the record section header, record block index, and all the record blocks
-		to outfile.		
+		# Writes the record section header, record block index, and all the record blocks
+		# to outfile.
+		#
+		# outfile: a file-like object, opened in binary mode.
 		
-		outfile: a file-like object, opened in binary mode.
-		"""
 		recordblocks_total_size = sum(
 		    (len(b.get_block()) for b in self._record_blocks))
 		if self._version == "2.0":
@@ -355,7 +355,7 @@ class MDictWriter(object):
 			outfile.write(b.get_block())
 		    
 	def write(self, outfile):
-		"""
+		""" 
 		Write the mdx file to outfile.
 		
 		outfile: a file-like object, opened in binary mode.
@@ -407,21 +407,29 @@ class MDictWriter(object):
 		f.write(header_string)
 		f.write(struct.pack(b"<L",zlib.adler32(header_string) & 0xffffffff))
 
-class MdxBlock(object):
-	"""
-	Base base class for MdxRecordBlock and MdxKeyBlock.
-	
-	Defines methods for getting both the block itself, as well as the entry in the
-	corresponding index (either record block index or key block index) for the
-	block.
-	"""
+class _MdxBlock(object):
+	# Abstract base class for _MdxRecordBlock and _MdxKeyBlock.
+	#
+	# In the MDX file format, the keyword section and the record section have a
+	# similar structure: 
+	#
+	#   section header
+	#   index entry for block 0
+	#   ...
+	#   index entry for block k
+	#   block 0
+	#   ...
+	#   block k
+	# 
+	# This class represents one such block. It defines a common interface for
+	# record blocks and keyword blocks, to allow the two sections to
+	# be built in a uniform manner.
+	#
 	
 	def __init__(self, offset_table, compression_type, version):
-		"""
-		Builds the data from offset_table.
-		
-		offset_table is a iterable containing OffsetTableEntry objects.
-		"""
+		# Builds the data from offset_table.
+		#
+		# offset_table is a iterable containing _OffsetTableEntry objects.
 		
 		decomp_data = b"".join(
 		    type(self)._block_entry(t, version)
@@ -432,55 +440,50 @@ class MdxBlock(object):
 		self._version = version
 	
 	def get_block(self):
-		"""Returns a bytes object, containing the data for this block."""
+		# Returns a bytes object, containing the data for this block.
 		return self._comp_data
 		
 	def get_index_entry(self):
-		"""
-		Returns a bytes object, containing the entry for this block in the
-		corresponding key block index or record block index.
-		"""
+		# Returns a bytes object, containing the entry for this block in the
+		# corresponding key block index or record block index.
+		
 		raise NotImplementedError()
 		
 	@staticmethod
 	def _block_entry(t, version):
-		"""
-		Returns the data corresponding to a single entry in offset.
+		# Returns the data corresponding to a single entry in offset.
+		#
+		# t is an _OffsetTableEntry object
 		
-		t is an OffsetTableEntry object
-		"""
 		raise NotImplementedError()
 	
 	@staticmethod
 	def _len_block_entry(t):
-		"""Should be approximately equal to len(_block_entry(t)).
-		
-		Used by MdxWriter._split_blocks() to determine where to split into blocks."""
+		# Should be approximately equal to len(_block_entry(t)).
+		#
+		# Used by MdxWriter._split_blocks() to determine where to split into blocks."""
 		raise NotImplementedError()
 		
-class MdxRecordBlock(MdxBlock):
-	"""
-	A class representing a record block.
-	
-	Has the ability to return (in the format suitable for insertion in an mdx file) 
-	both the block itself, as well as the entry in the record block index for that
-	block.
-	"""
+class _MdxRecordBlock(_MdxBlock):
+	# A class representing a record block.
+	#
+	# Has the ability to return (in the format suitable for insertion in an mdx file) 
+	# both the block itself, as well as the entry in the record block index for that
+	# block.
+
 	def __init__(self, offset_table, compression_type, version):
-		"""
-		Builds the data for offset_table.
+		# Builds the data for offset_table.
+		#
+		# offset_table is a iterable containing _OffsetTableEntry objects.
+		#
+		# Actually only uses the record parts.
 		
-		offset_table is a iterable containing OffsetTableEntry objects.
-		
-		Actually only uses the record parts.
-		"""
-		MdxBlock.__init__(self, offset_table, compression_type, version)
+		_MdxBlock.__init__(self, offset_table, compression_type, version)
 		
 	def get_index_entry(self):
-		"""
-		Returns a bytes object, containing the entry for this block in the record
-		block index.
-		"""
+		# Returns a bytes object, containing the entry for this block in the record
+		# block index.
+		
 		if self._version == "2.0":
 			format = b">QQ"
 		else:
@@ -495,23 +498,20 @@ class MdxRecordBlock(MdxBlock):
 	def _len_block_entry(t):
 		return len(t.record_null)
 	
-class MdxKeyBlock(MdxBlock):
-	"""
-	A class representing a key block.
-	
-	Has the ability to return (in the format suitable for insertion in an mdx file) 
-	both the block itself, as well as the entry in the record block index for that
-	block.
-	"""
+class _MdxKeyBlock(_MdxBlock):
+	# A class representing a key block.
+	#
+	# Has the ability to return (in the format suitable for insertion in an mdx file) 
+	# both the block itself, as well as the entry in the record block index for that
+	# block.
 	def __init__(self, offset_table, compression_type, version):
-		"""
-		Builds the data for offset_table.
-		
-		offset_table is a iterable containing OffsetTableEntry objects.
-		
-		Only uses the key, key_len, key_null and offset fields, and effectively ignores record_null.
-		"""
-		MdxBlock.__init__(self, offset_table, compression_type, version)
+		# Builds the data for offset_table.
+		#
+		# offset_table is a iterable containing _OffsetTableEntry objects.
+		#
+		# Only uses the key, key_len, key_null and offset fields, and effectively ignores record_null.
+
+		_MdxBlock.__init__(self, offset_table, compression_type, version)
 		self._num_entries = len(offset_table)
 		if version=="2.0":
 			self._first_key = offset_table[0].key_null
@@ -535,7 +535,7 @@ class MdxKeyBlock(MdxBlock):
 		return 8 + len(t.key_null) #This is only accurate for version 2.0, but we only need approximate size anyway
 	
 	def get_index_entry(self):
-		"""Returns a bytes object, containing the header data for this block"""
+		# Returns a bytes object, containing the header data for this block
 		if self._version == "2.0":
 			long_format = b">Q"
 			short_format = b">H"
