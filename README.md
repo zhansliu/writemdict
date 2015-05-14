@@ -11,9 +11,25 @@ features of the format. Among the supported features are:
 * Versions 1.2 and 2.0 of the file format
 * gzip or LZO compression (the latter with the python-lzo library).
 * encrypted .mdx files (two different encryption schemes)
-* 4 different character encodings 
+* 4 different character encodings.
+
+# Files
+
+* writemdict.py: the main file of the project.
+* ripemd128.py: a simple implementation of RIPEMD128 in pure Python.
+* pureSalsa20.py: implements the Salsa20 stream cipher in pure Python. This version includes support for Python 3.
+* testwrite.py: tests the functionality of the library by writing dictionaries using different options to the subdirectory
+testoutput/. These should be opened with the official MDict client to verify that they are correctly written.
+* README.md: this file.
+* fileformat.md: A description of the mdx file format.
+
+# Optional dependency
+
+To support LZO compression, the python-lzo library must be installed.
 
 # Usage example
+
+The main file
 
 A very simple example, demonstrating the use of this library:
 
