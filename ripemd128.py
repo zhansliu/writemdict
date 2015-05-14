@@ -1,5 +1,20 @@
+""" 
+ripemd128.py - A simple ripemd128 library in pure Python.
+
+Supports both Python 2 (versions >= 2.6) and Python 3.
+
+Usage:
+    from ripemd128 import ripemd128
+    digest = ripemd128(b"The quick brown fox jumps over the lazy dog")
+    assert(digest == b"\x3f\xa9\xb5\x7f\x05\x3c\x05\x3f\xbe\x27\x35\xb2\x38\x0d\xb5\x96")
+"""
+      
+
+
 import struct
-# follows this: http://homes.esat.kuleuven.be/~bosselae/ripemd/rmd128.txt
+
+
+# follows this description: http://homes.esat.kuleuven.be/~bosselae/ripemd/rmd128.txt
 
 def f(j, x, y, z):
 	assert(0 <= j and j < 64)
@@ -35,13 +50,15 @@ def Kp(j):
 		return 0x00000000
 
 def padandsplit(message):
-	# returns a two-dimensional array X[i][j] of 32-bit integers, where j ranges
-	# from 0 to 16.
-	# First pads the message to length in bytes is congruent to 56 (mod 64), 
-	# by first adding a byte 0x80, and then padding with 0x00 bytes until the
-	# message length is congruent to 56 (mod 64). Then adds the little-endian
-	# 64-bit representation of the original length. Finally, splits the result
-	# up into 64-byte blocks, which are further parsed as 32-bit integers.
+	"""
+	returns a two-dimensional array X[i][j] of 32-bit integers, where j ranges
+	from 0 to 16.
+	First pads the message to length in bytes is congruent to 56 (mod 64), 
+	by first adding a byte 0x80, and then padding with 0x00 bytes until the
+	message length is congruent to 56 (mod 64). Then adds the little-endian
+	64-bit representation of the original length. Finally, splits the result
+	up into 64-byte blocks, which are further parsed as 32-bit integers.
+	"""
 	origlen = len(message)
 	padlength = 64 - ((origlen - 56) % 64) #minimum padding is 1!
 	message += b"\x80"
