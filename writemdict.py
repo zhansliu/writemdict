@@ -1,3 +1,30 @@
+"""
+writemdict.py - a library for creating dictionary files in the MDict file format.
+
+Optional dependencies:
+  python-lzo: Required to write dictionaries using LZO compression. (Other compression schemes are available.)
+
+Simple usage example: 
+
+    from __future__ import unicode_literals
+    from writemdict import MDictWriter
+
+    dictionary = {"doe": "a deer, a female deer.",
+                  "ray": "a drop of golden sun.",
+                  "me": "a name I call myself.",
+                  "far": "a long, long way to run."}
+
+    writer = MDictWriter(dictionary, title="Example Dictionary", description="This is an example dictionary.")
+    outfile = open("dictionary.mdx", "wb")
+    writer.write(outfile)
+    outfile.close()
+
+  This will create an MDX file called "dictionary.mdx", with four entries: "doe", "ray", "me", "far", and the 
+  corresponding definitions.
+
+  For further options, see the documentation for MdxWriter.__init__().
+"""
+
 from __future__ import unicode_literals
 
 import struct, zlib, operator, sys, datetime

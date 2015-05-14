@@ -7,7 +7,9 @@
     v4.0: Added Python 3 support, dropped support for Python <= 2.5.
     
     // zhansliu
-		
+
+    Original comments below.
+
     ====================================================================
     There are comments here by two authors about three pieces of software:
         comments by Larry Bugbee about
