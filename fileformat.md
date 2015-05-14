@@ -21,7 +21,7 @@ The basic file structure is a follows:
 # Header Section
 
 | `header_sect` |Length  |   |
-|---------------|---|-----------------|
+|---------------|-----|-----------------|
 | `length`      | 4 bytes | Length of `header_str`, in bytes. Big-endian.
 | `header_str`  | varying | An XML string, encoded in UTF-16LE. See below for details. |
 | `checksum`    | 4 bytes | ADLER32 checksum of `header_str`, stored little-endian.  |
@@ -69,17 +69,17 @@ are replaced according to the scheme specified in `StyleSheet`. See the document
 The keyword section contains all the keywords in the dictionary, divided into blocks, as well as information about the sizes of these blocks.
 
 | `keyword_sect` | Length|      |
-|----------------|--|------|
-| `num_blocks`   | 8 bytes |Number of items in key_blocks. Big-endian. Possibly encrypted, see below. |
+|----------------|------|------|
+| `num_blocks`   | 8 bytes | Number of items in key_blocks. Big-endian. Possibly encrypted, see below. |
 | `num_entries`  | 8 bytes | Total number of keywords. Big-endian. Possibly encrypted, see below. |
-| `key_index_decomp_len` | 8 bytes | Number of bytes in decompressed version of key_index. Big-endian. Possibly encrypted, see below. |
-| `key_index_comp_len`   | 8 bytes | Number of bytes in compressed version of key_index (including the `comp_type` and `checksum` parts). Big-endian. Possibly encrypted, see below. |
+| `key_index_decomp_len` | 8 bytes | Number of bytes in decompressed version of `key_index`. Big-endian. Possibly encrypted, see below. |
+| `key_index_comp_len`   | 8 bytes | Number of bytes in compressed version of `key_index` (including the `comp_type` and `checksum` parts). Big-endian. Possibly encrypted, see below. |
 | `key_blocks_len`       | 8 bytes | Total number of bytes taken up by key_blocks. Big-endian. Possibly encrypted, see below. |
 | `checksum`             | 4 bytes | ADLER32 checksum of the preceding 40 bytes. If those are encrypted, it is the checksum of the decrypted version. Big-endian. |
 | `key_index`            | varying | The keyword index, compressed and possibly encrypted. See below. |
-| `key_blocks[0]`         | varying | A compressed block containing keywords, compressed. See below.  |
+| `key_blocks[0]`       | varying | A compressed block containing keywords, compressed. See below.  |
 | ...                    |    ...  | ...|
-| `key_blocks[num_blocks-1]`         | varying |... |
+| `key_blocks[num_blocks-1]` | varying |... |
 
 ## Keyword header encryption:
 
@@ -109,17 +109,17 @@ The 128-bit `reg_code` is then distributed to the user. This can be done in two 
 The keyword index lists some basic data about the key blocks. It it compressed (see "Compression"), and possibly encrypted (see "Keyword index encryption"). After decompression and decryption, it looks like this:
 
 | `decompress(keyword_sect)` | Length |  |
-|----------------------------|--|----|
+|----------------------------|------|----|
 | `num_entries[0]`          | 8 bytes | Number of keywords in the first keyword block. |
 | `first_size[0]`           | 2 bytes | Length of `first_word[0]`, not including trailing null character. In number of "basic units" for the encoding, so e.g. bytes for UTF-8, and 2-byte units for UTF-16. |
 | `first_word[0]`           | varying | The first keyword (alphabetically) in the `key_blocks[0]` keyword block. Encoding given by `Encoding` attribute in the header. |
 | `last_size[0]`           | 2 bytes | Length of `last_word[0]`, not including trailing null character. In number of "basic units" for the encoding, so e.g. bytes for UTF-8, and 2-byte units for UTF-16. |
 | `last_word[0]`            | varying | The last keyword (alphabetically) in the `key_blocks[0]` keyword block. Encoding given by `Encoding` attribute in the header. |
-| `comp_size[0]`            | 8 bytes | Compressed size of key_blocks[0]. |
-| `decomp_size[0]`          | 8 bytes | Decompressed size of key_blocks[0]. |
-| `num_entries[1]`          | 8 bytes |...|
-| ...                       |      ...|...|
-| `decomp_size[num_blocks-1]` | 8 bytes |...|
+| `comp_size[0]`            | 8 bytes | Compressed size of `key_blocks[0]`. |
+| `decomp_size[0]`          | 8 bytes | Decompressed size of `key_blocks[0]`. |
+| `num_entries[1]`          | 8 bytes |... |
+| ...                       |      ...|... |
+| `decomp_size[num_blocks-1]` | 8 bytes |... |
 
 ### Keyword index encryption:
 
@@ -142,7 +142,7 @@ The encryption key used is `ripemd128(checksum + "\x95\x36\x00\x00")`, where + d
 Each keyword is compressed (see "Compression"). After decompressing, they look like this:
 
 | `decompress(key_blocks[0])` | Length  |   |
-|-----------------|---------|---|
+|-----------------|---------|------|
 | `offset[0]`     | 8 bytes | Offset where the record corresponding to `key[0]` can be found, see below. Big-endian. |
 | `key[0]`        | varying | The first keyword in the dictionary, null-terminated and encoded using `Encoding`.  |
 | `offset[1]`     | 8 bytes | ... |
@@ -176,7 +176,7 @@ The record section looks like this:
 Each record block is compressed (see "Compression"). After decompressing, they look like this:
 
 | `decompress(rec_block[0])` | Length | |
-|----------------------------|--------|--|
+|----------------------------|--------|-----|
 | `record[0]`                | varying | The first record, null-terminated and encoded using `Encoding`. |
 | `record[1]`                | varying |...|
 | ...                        |   ...   |...|
@@ -186,7 +186,7 @@ Each record block is compressed (see "Compression"). After decompressing, they l
 Various data blocks are compressed using the same scheme. These all look like these:
 
 | `compress(data)`  | Length |  |
-|-------------------|--------|--|
+|-------------------|--------|------|
 | `comp_type`       | 4 bytes | Compression type. See below. |
 | `checksum`        | 4 bytes | ADLER32 checksum of the uncompressed data. Big-endian. |
 | `compressed_data` | varying | Compressed version of `data`.|
