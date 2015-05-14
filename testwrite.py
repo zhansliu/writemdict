@@ -85,3 +85,21 @@ writer = MDictWriter(d, "Encryption test", "This dictionary tests encryption, wi
 writer.write(outfile)
 outfile.close()
 
+# No compression test
+outfile = open("testoutput/testnocomp.mdx", "wb")
+
+writer = MDictWriter(d, "Compression type 0", "This is a test of the basic dictionary, with compression type 0 (no compression)", compression_type=0)
+writer.write(outfile)
+outfile.close()
+
+# LZO compression
+outfile = open("testoutput/testlzocomp.mdx", "wb")
+try:
+	writer = MDictWriter(d, "LZO compression test", "This tests the LZO compression type.", compression_type=1)
+	writer.write(outfile)
+except NotImplementedError:
+	print("python-lzo not installed. Skipping LZO test.")
+outfile.close()
+	
+
+

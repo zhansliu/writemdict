@@ -6,18 +6,30 @@ from ripemd128 import ripemd128
 from cgi import escape
 from pureSalsa20 import Salsa20
 
+try:
+	import lzo
+	HAVE_LZO = True
+except ImportError:
+	HAVE_LZO = False
+
 class ParameterError(Exception):
 	pass
 
 def _mdx_compress(data, compression_type=2):
 	header = (struct.pack(b"<L", compression_type) + 
-	         struct.pack(b">L", zlib.adler32(data) & 0xffffffff)) #depending on python version, zlib.adler32 may return a signed number. This normalizes for that.
+	         struct.pack(b">L", zlib.adler32(data) & 0xffffffff)) #depending on python version, zlib.adler32 may return a signed number. 
 	if compression_type == 0: #no compression
 		return header + data
 	elif compression_type == 2:
 		return header + zlib.compress(data)
+	elif compression_type == 1:
+		if HAVE_LZO:
+			print(header+lzo.compress(data)[5:])
+			return header + lzo.compress(data)[5:] #python-lzo adds a 5-byte header.
+		else:
+			raise NotImplementedError()
 	else:
-		raise NotImplementedError()
+		raise ParameterError("Unknown compression type")
 		
 def _fast_encrypt(data, key):
 	b = bytearray(data)
