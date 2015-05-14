@@ -1,17 +1,17 @@
+from __future__ import unicode_literals
+
 import struct, zlib, operator, sys, datetime
 
-assert(sys.version_info >= (3, 0))
-
 from ripemd128 import ripemd128
-from html import escape
+from cgi import escape
 from pureSalsa20 import Salsa20
 
 class ParameterError(Exception):
 	pass
 
 def _mdx_compress(data, compression_type=2):
-	header = (struct.pack("<L", compression_type) + 
-	         struct.pack(">L", zlib.adler32(data)))
+	header = (struct.pack(b"<L", compression_type) + 
+	         struct.pack(b">L", zlib.adler32(data) & 0xffffffff)) #depending on python version, zlib.adler32 may return a signed number. This normalizes for that.
 	if compression_type == 0: #no compression
 		return header + data
 	elif compression_type == 2:
@@ -29,7 +29,7 @@ def _fast_encrypt(data, key):
 	return bytes(b)
 	
 def _mdx_encrypt(comp_block):
-	key = ripemd128(comp_block[4:8] + struct.pack("<L", 0x3695))
+	key = ripemd128(comp_block[4:8] + struct.pack(b"<L", 0x3695))
 	return comp_block[0:8] + _fast_encrypt(comp_block[8:], key)
 	
 def _salsa_encrypt(plaintext, dict_key):
@@ -42,7 +42,17 @@ def _salsa_encrypt(plaintext, dict_key):
 	return s20.encryptBytes(plaintext)
 
 def hexdump(bytes_blob):
-	return "".join("{:02X}".format(c) for c in bytes_blob)
+	# Returns a hexadecimal string
+	# bytes_blob is a bytes object. 
+	
+	# In Python 2.6+, bytes is an alias for str, and indexing into a bytes
+	# object gives a string of length 1.
+	# In Python 3, indexing into a bytes object gives a number.
+	# The following should work on both versions.
+	if bytes == str:
+		return "".join("{:02X}".format(ord(c)) for c in bytes_blob)
+	else:
+		return "".join("{:02X}".format(c) for c in bytes_blob)
 	
 def encrypt_key(dict_key, email):
 	"""
@@ -62,17 +72,17 @@ def encrypt_key(dict_key, email):
 	return hexdump(output_key)
 	
 
-class OffsetTableEntry:
-	def __init__(self, *, key, key_null, key_len, offset, record_null):
+class OffsetTableEntry(object):
+	def __init__(self, key, key_null, key_len, offset, record_null):
 		self.key = key
 		self.key_null = key_null
 		self.key_len = key_len
 		self.offset = offset
 		self.record_null = record_null
 
-class MDictWriter:
+class MDictWriter(object):
 	
-	def __init__(self, d, title, description, *, 
+	def __init__(self, d, title, description, 
 	             block_size=65536, 
 							 encrypt_index=False,
 							 encoding="utf8",
@@ -259,19 +269,19 @@ class MDictWriter:
 		"""
 		keyblocks_total_size = sum(len(b.get_block()) for b in self._key_blocks)
 		if self._version == "2.0":
-			preamble = struct.pack(">QQQQQ",
+			preamble = struct.pack(b">QQQQQ",
 			    len(self._key_blocks),
 			    self._num_entries,
 			    self._keyb_index_decomp_size,
 			    self._keyb_index_comp_size,
 			    keyblocks_total_size)
-			preamble_checksum = struct.pack(">L", zlib.adler32(preamble))
+			preamble_checksum = struct.pack(b">L", zlib.adler32(preamble))
 			if(self._encrypt):
 				preamble = _salsa_encrypt(preamble, self._encrypt_key)
 			outfile.write(preamble)
 			outfile.write(preamble_checksum)
 		else:
-			preamble = struct.pack(">LLLL",
+			preamble = struct.pack(b">LLLL",
 			    len(self._key_blocks),
 			    self._num_entries,
 			    self._keyb_index_decomp_size,
@@ -294,9 +304,9 @@ class MDictWriter:
 		recordblocks_total_size = sum(
 		    (len(b.get_block()) for b in self._record_blocks))
 		if self._version == "2.0":
-			format = ">QQQQ"
+			format = b">QQQQ"
 		else:
-			format = ">LLLL"
+			format = b">LLLL"
 		outfile.write(struct.pack(format,
 		    len(self._record_blocks),
 		    self._num_entries,
@@ -354,11 +364,11 @@ class MDictWriter:
 		    title=escape(self._title, quote=True),
 		    regcode=regcode
 		    ).encode("utf_16_le")
-		f.write(struct.pack(">L", len(header_string)))
+		f.write(struct.pack(b">L", len(header_string)))
 		f.write(header_string)
-		f.write(struct.pack("<L",zlib.adler32(header_string)))
+		f.write(struct.pack(b"<L",zlib.adler32(header_string) & 0xffffffff))
 
-class MdxBlock:
+class MdxBlock(object):
 	"""
 	Base base class for MdxRecordBlock and MdxKeyBlock.
 	
@@ -433,9 +443,9 @@ class MdxRecordBlock(MdxBlock):
 		block index.
 		"""
 		if self._version == "2.0":
-			format = ">QQ"
+			format = b">QQ"
 		else:
-			format = ">LL"
+			format = b">LL"
 		return struct.pack(format, self._comp_size, self._decomp_size)
 	
 	@staticmethod
@@ -476,9 +486,9 @@ class MdxKeyBlock(MdxBlock):
 	@staticmethod
 	def _block_entry(t, version):
 		if version == "2.0":
-			format = ">Q"
+			format = b">Q"
 		else:
-			format = ">L"
+			format = b">L"
 		return struct.pack(format, t.offset)+t.key_null
 	
 	@staticmethod
@@ -488,11 +498,11 @@ class MdxKeyBlock(MdxBlock):
 	def get_index_entry(self):
 		"""Returns a bytes object, containing the header data for this block"""
 		if self._version == "2.0":
-			long_format = ">Q"
-			short_format = ">H"
+			long_format = b">Q"
+			short_format = b">H"
 		else:
-			long_format = ">L"
-			short_format = ">B"
+			long_format = b">L"
+			short_format = b">B"
 		return (
 		    struct.pack(long_format, self._num_entries)
 		  + struct.pack(short_format, self._first_key_len)

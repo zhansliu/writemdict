@@ -4,6 +4,7 @@ from __future__ import unicode_literals, print_function, absolute_import, divisi
 
 from writemdict import MDictWriter, encrypt_key
 from ripemd128 import ripemd128
+import io
 
 d = {
     "alpha":"<i>alpha</i>",
@@ -74,7 +75,7 @@ writer = MDictWriter(d, "Encryption test", "This dictionary tests encryption", e
 writer.write(outfile)
 outfile.close()
 key = encrypt_key(b"abc", "example@example.com".encode("ascii"))
-keyfile = open("testoutput/test_enc_abc.key", "w", encoding="ascii")
+keyfile = io.open("testoutput/test_enc_abc.key", "w", encoding="ascii")
 keyfile.write(key)
 keyfile.close()
 
