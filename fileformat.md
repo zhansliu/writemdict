@@ -106,9 +106,9 @@ The 128-bit `reg_code` is then distributed to the user. This can be done in two 
 
 ## Keyword index
 
-The keyword index lists some basic data about the key blocks. It it compressed (see "Compression"), and possibly encrypted (see "Keyword index encryption"). After decompression and decryption, it looks like this:
+The keyword index lists some basic data about the key blocks. It is compressed (see "Compression"), and possibly encrypted (see "Keyword index encryption"). After decompression and decryption, it looks like this:
 
-| `decompress(keyword_sect)` | Length |  |
+| `decompress(key_index)` | Length |  |
 |----------------------------|------|----|
 | `num_entries[0]`          | 8 bytes | Number of keywords in the first keyword block. |
 | `first_size[0]`           | 2 bytes | Length of `first_word[0]`, not including trailing null character. In number of "basic units" for the encoding, so e.g. bytes for UTF-8, and 2-byte units for UTF-16. |
@@ -127,7 +127,7 @@ If the parameter `Encrypted` in the header has its second-lowest bit set (i.e. `
 will be used to encrypt the `compressed_data` part, after compression.
 
     #define SWAPNIBBLE(byte) (((byte)>>4) | ((byte)<<4))
-    void encrypt(unsigned char* buf, size_t buflen, unsigned char* key, char* keylen) {
+    void encrypt(unsigned char* buf, size_t buflen, unsigned char* key, size_t keylen) {
     	unsigned char prev=0x36;
     	for(size_t i=0; i < buflen; i++) {
     		buf[i] = SWAPNIBBLE(buf[i] ^ ((unsigned char)i) ^ key[i%keylen] ^ previous);
@@ -193,6 +193,6 @@ Various data blocks are compressed using the same scheme. These all look like th
 
 The compression type can be indicated by `comp_type`. There are three options:
 
- * If `comp_type` is `'\x02\x00\x00\x00'`, then no compression is applied at all, and `compressed_data` is equal to `data`.
+ * If `comp_type` is `'\x00\x00\x00\x00'`, then no compression is applied at all, and `compressed_data` is equal to `data`.
  * If `comp_type` is `'\x01\x00\x00\x00'`, LZO compression is used.
- * If `comp_type` is `'\x00\x00\x00\x00'`, zlib compression is used. It so happens that the zlib compression format appends an ADLER32 checksum, so in this case, `checksum` will be equal to the last four bytes of `compressed_data`.
+ * If `comp_type` is `'\x02\x00\x00\x00'`, zlib compression is used. It so happens that the zlib compression format appends an ADLER32 checksum, so in this case, `checksum` will be equal to the last four bytes of `compressed_data`.
