@@ -72,7 +72,7 @@ def _mdx_encrypt(comp_block):
 	return comp_block[0:8] + _fast_encrypt(comp_block[8:], key)
 	
 def _salsa_encrypt(plaintext, dict_key):
-	if(type(dict_key) == str):
+	if(type(dict_key) == str) == unicode):
 		dict_key = dict_key.encode("utf8")
 	assert(type(dict_key) == bytes)
 	assert(type(plaintext) == bytes)
@@ -94,20 +94,40 @@ def _hexdump(bytes_blob):
 	else:
 		return "".join("{:02X}".format(c) for c in bytes_blob)
 	
-def encrypt_key(dict_key, email):
+def encrypt_key(dict_key, **kwargs):
 	"""
 	Generates a hexadecimal key for use with the official MDict program.
+
+	Parameters:
+	  dict_key: a unicode string, representing the dictionary password.
+
+	Keyword parameters:
+	  Exactly one of email and device_id should be specified. They should be unicode strings,
+	  representing either the user's email address, or the device ID of the machine on which
+	  the dictionary is to be opened.
 	
-	dict_key and email should be of type bytes (representing ascii strings), and outfile should be a file
-	open for writing in text mode.
+	Return value:
+	  a string of 32 hexadecimal digits. This should be placed in a file of its own,
+	  with the same name and location as the mdx file but the extension changed to '.key'.
+
+	Example usage:
+		key = encrypt_key("password", email="username@example.com")
+
+		key = encrypt_key("password", device_id="12345678-9012-3456-7890-1234")
+	"""
+
+	if(("email" not in kwargs and "device_id" not in kwargs) or ("email" in kwargs and "device_id" in kwargs)):
+		raise ParameterError("Expected exactly one of email and device_id as keyword argument")
+
+
+	if "email" in kwargs:
+		owner_info_digest = ripemd128(kwargs["email"].encode("ascii"))
+	else:
+		owner_info_digest = ripemd128(kwargs["device_id"].encode("ascii"))
+
+	dict_key_digest = ripemd128(dict_key.encode("utf_8"))
 	
-	Returns a string of 32 hexadecimal digits. This should be placed in a file of its own, with
-	the same name and location as the mdx file but the extension changed to '.key'. """
-	
-	email_digest = ripemd128(email)
-	dict_key_digest = ripemd128(dict_key)
-	
-	s20 = Salsa20(key=email_digest,IV=b"\x00"*8,rounds=8)
+	s20 = Salsa20(key=owner_info_digest,IV=b"\x00"*8,rounds=8)
 	output_key = s20.encryptBytes(dict_key_digest)
 	return _hexdump(output_key)
 	
@@ -128,34 +148,52 @@ class MDictWriter(object):
 	
 	def __init__(self, d, title, description, 
 	             block_size=65536, 
-							 encrypt_index=False,
-							 encoding="utf8",
-							 compression_type=2,
-							 version="2.0",
-							 encrypt_key = None,
-							 user_email = None):
+	             encrypt_index=False,
+	             encoding="utf8",
+	             compression_type=2,
+	             version="2.0",
+	             encrypt_key = None,
+	             register_by = None,
+	             user_email = None,
+				 user_device_id = None):
 		"""
 		Prepares the records. A subsequent call to write() writes 
 		the mdx file.
 		   
 		d is a dictionary, with key, value both being (unicode) strings. 
-		key is the headword, and value is a html string, with no final newline, 
-		with the explanation for that headword.
+		  key is the headword, and value is a html string, with no final newline, 
+		  with the explanation for that headword.
 		
 		title is a (unicode) string, with the title of the dictionary
-		description is a (unicode) string, with a short description of the dictionary.
+		  description is a (unicode) string, with a short description of the
+		  dictionary.
 		   
 		block_size is the approximate number of bytes (uncompressed)
-		before starting a new block.
+		  before starting a new block.
 		
 		encrypt_index is true if the keyword index should be encrypted.
 		
-		encrypt_key should be a bytes object, containing the dictionary key. If encrypt_key is None,
-			no encryption will be applied. Usually, encrypt_key will be an ASCII string.
+		encrypt_key should be a string, containing the dictionary key. If
+		  encrypt_key is None, no encryption will be applied. If encrypt_key is
+		  not None, you need to specify register_by.
+
+		register_by should be either "email" or "device_id". Ignored unless
+		  encrypt_key is not None. Specifies whether the user's email or user's
+		  device ID should be used to encrypt the encryption key.
+
+		user_email is ignored unless encrypt_key is not None and register_by is 
+		  "email". If it is specified, an encrypted form of encrypt_key will be
+		  written into the dictionary header. The file can then be opened by
+		  anyone who has set their email (in the MDict client) this this value.
+		  If it is not specified, the MDict client will look for this encrypted
+		  key in a separate .key file.
 			
-		user_email will be a bytes object. If it is not None, encrypt_key will be written in
-		encrypted form into the dictionary header. The file can then be opened by
-		anyone who has set their email (in the MDict client) to this value. Only makes sense if encrypt_key is not None. 
+		user_device_id is ignored unless encrypt_key is not None and register_by
+		  is "device_id". If it is specified, an encrypted form of encrypt_key
+		  will be written into the dictionary header. The file can then be opened by
+		  anyone whose device ID (as determined by the MDict client) equals this
+		  value. If it is not specified, the MDict client will look for this
+		  encrypted key in a separate .key file.
 		"""
 
 		self._num_entries = len(d)
@@ -165,7 +203,11 @@ class MDictWriter(object):
 		self._encrypt_index = encrypt_index
 		self._encrypt = (encrypt_key is not None)
 		self._encrypt_key = encrypt_key
+		if register_by not in ["email", "device_id", None]:
+			raise ParameterError("Unkonwn register_by type")
+		self._register_by = register_by
 		self._user_email = user_email
+		self._user_device_id = user_device_id
 		self._compression_type = compression_type
 		encoding = encoding.lower()
 		if encoding in ["utf8", "utf-8"]:
@@ -219,10 +261,10 @@ class MDictWriter(object):
 			record_null = (record+"\0").encode(self._python_encoding) 
 			self._offset_table.append(_OffsetTableEntry(
 			    key=key_enc,
-					key_null=key_null,
-					key_len=key_len,
-					record_null=record_null,
-					offset=offset))
+			    key_null=key_null,
+			    key_len=key_len,
+			    record_null=record_null,
+			    offset=offset))
 			offset += len(record_null)
 		self._total_record_len = offset
 	
@@ -373,9 +415,20 @@ class MDictWriter(object):
 		if self._encrypt:
 			encrypted = encrypted | 1
 		
-		if self._encrypt and self._user_email:
-			regcode = encrypt_key(self._encrypt_key, self._user_email)
+		if self._encrypt and self._register_by == "email":
+			register_by_str = "EMail"
+			if self._user_email is not None:
+				regcode = encrypt_key(self._encrypt_key, email=self._user_email)
+			else:
+				regcode = ""
+		elif self._encrypt and self._register_by == "device_id":
+			register_by_str = "DeviceID"
+			if self._user_device_id is not None:
+				regcode = encrypt_key(self._encrypt_key, device_id=self._user_device_id)
+			else:
+				regcode = ""
 		else:
+			register_by_str = ""
 			regcode = ""
 		
 		header_string = (
@@ -393,7 +446,7 @@ class MDictWriter(object):
 		"""Title="{title}" """
 		"""DataSourceFormat="106" """
 		"""StyleSheet="" """
-		"""RegisterBy="Email" """
+		"""RegisterBy="{register_by_str}" """
 		"""RegCode="{regcode}"/>\r\n\x00""").format(
 		    version = self._version,
 		    encrypted = encrypted,
@@ -401,6 +454,7 @@ class MDictWriter(object):
 		    date = datetime.date.today(), 
 		    description=escape(self._description, quote=True),
 		    title=escape(self._title, quote=True),
+			register_by_str=register_by_str,
 		    regcode=regcode
 		    ).encode("utf_16_le")
 		f.write(struct.pack(b">L", len(header_string)))

@@ -91,19 +91,20 @@ writer = MDictWriter(d,
 writer.write(outfile)
 outfile.close()
 
-### Example 9: Encryption test, using an external .key file
+### Example 9: Encryption test, using an external .key file, and the user email.
 #              This creates two files: encrypted_external_regcode.mdx and encrypted_external_regcode.key.
 #              To open, the user needs to set his/her email to "example@example.com" in the MDict reader.
 outfile = open("example_output/encrypted_external_regcode.mdx", "wb")
 writer = MDictWriter(d,
                      "Encrypted dictionary",
                      "This dictionary tests encryption",
-                     encoding="utf8",
+                     encoding="utf16",
                      version="2.0",
-                     encrypt_key=b"my password")
+                     encrypt_key="abc",
+                     register_by="email")
 writer.write(outfile)
 outfile.close()
-key = encrypt_key(b"my password", "example@example.com".encode("ascii"))
+key = encrypt_key("abc", email="example@example.com")
 keyfile = io.open("example_output/encrypted_external_regcode.key", "w", encoding="ascii")
 keyfile.write(key)
 keyfile.close()
@@ -114,14 +115,51 @@ outfile = open("example_output/encrypted_internal_regcode.mdx", "wb")
 writer = MDictWriter(d, 
                      "Encrypted dictionary",
                      "This dictionary tests encryption, with key supplied in dictionary header",
-                     encoding="utf8",
+                     encoding="utf16",
                      version="2.0",
-                     encrypt_key=b"abc",
-                     user_email="example@example.com".encode("ascii"))
+                     encrypt_key="abc",
+                     register_by="email",
+                     user_email="example@example.com")
 writer.write(outfile)
 outfile.close()
 
-### Example 11: Basic dictionary, with no compression. 
+
+### Example 11: Encryption test, using an external .key file, and the DeviceID.
+#              This creates two files: encrypted_external_regcode.mdx and encrypted_external_regcode.key.
+#              To open, the user's deviceID (in the MDict client) needs to be
+#              "12345678-9012-3456-7890-1234"      
+outfile = open("example_output/encrypted_external_regcode_device_id.mdx", "wb")
+writer = MDictWriter(d,
+                     "Encrypted dictionary",
+                     "This dictionary tests encryption, using the DeviceID method",
+                     encoding="utf8",
+                     version="2.0",
+                     encrypt_key="abc",
+                     register_by="device_id")
+writer.write(outfile)
+outfile.close()
+key = encrypt_key("abc", device_id="")
+keyfile = io.open("example_output/encrypted_external_regcode_device_id.key", "w", encoding="ascii")
+keyfile.write(key)
+keyfile.close()
+
+### Example 12: Encryption test, with the registration code supplied with the dictionary.
+#              To open, the user's deviceID (in the MDict client) needs to be
+#              "12345678-9012-3456-7890-1234"      
+outfile = open("example_output/encrypted_internal_regcode_device_id.mdx", "wb")
+writer = MDictWriter(d, 
+                     "Encrypted dictionary",
+                     "This dictionary tests encryption using the DeviceID method, with key supplied in dictionary header",
+                     encoding="utf8",
+                     version="2.0",
+                     encrypt_key="abc",
+                     register_by="device_id",
+                     user_device_id="")
+writer.write(outfile)
+outfile.close()
+
+
+### Example 13: Basic dictionary, with no compression. 
 outfile = open("example_output/no_compression.mdx", "wb")
 writer = MDictWriter(d,
                      "Uncompressed dictionary",
@@ -130,7 +168,7 @@ writer = MDictWriter(d,
 writer.write(outfile)
 outfile.close()
 
-### Example 12: Basic dictionary, with LZO compression:
+### Example 14: Basic dictionary, with LZO compression:
 #               Only works if python-lzo is installed.
 outfile = open("example_output/lzo_compression.mdx", "wb")
 try:

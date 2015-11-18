@@ -42,6 +42,7 @@ The `header_str` consists of a single, XML tag `dictionary`, with various attrib
     Title="My dictionary"
     DataSourceFormat="106"
     StyleSheet=""
+    RegisterBy="Email"
     RegCode="0102030405060708090A0B0C0D0E0F"/>
 
 The meaning of the attributes are explained below:
@@ -62,6 +63,7 @@ are replaced according to the scheme specified in `StyleSheet`. See the document
 |`Title` | The title of the dictionary. |
 |`DataSourceFormat` | Unknown. |
 |`StyleSheet` | Used in conjunction with the `Compact` option. See the documentation for the official MdxBuilder client for details. |
+|`RegisterBy` | Either "EMail" or "DeviceID". Only used if the lower bit of `Encrypted` is set. Indicates which piece of user-identifying data is used to encrypt the encryption key. See the section [Keyword header encryption](#keyword-header-encryption) for details. |
 |`RegCode` | When keyword header encryption is used (see [Keyword header encryption](#keyword-header-encryption)), this is one way to deliver the encrypted key. In this case, this is a string consisting of 32 hexadecimal digits. |
 
 # Keyword Section
@@ -95,9 +97,12 @@ If the parameter `Encrypted` in the header has the lowest bit set (i.e. `Encrypt
 
 Here, `encryption_key` is the dictionary password specified on creation of the dictionary.
 
-This `encryption_key` is not distributed directly. Instead it is further encrypted, using an email address that the end user enters into his or her MDict client:
+This `encryption_key` is not distributed directly. Instead it is further encrypted, using a piece of data, `user_id`, that is specific to the user or the client machine, according to the following scheme:
 
-    reg_code = encrypt(ripemd128(encryption_key), ripemd128(user_email))
+    reg_code = encrypt(ripemd128(encryption_key), ripemd128(user_id))
+
+The string `user_id` can be either an email address ("example@example.com") that the user enters into his/her MDict client, or a device ID ("12345678-90AB-CDEF-0123-4567890A") which the MDict client obtains in different ways depending on the platform. The choice of which one to use depends on the attribute `RegisterBy` in the file header. (See [Header section](#header-section).) In either case, `user_id` is an ASCII-encoded string. On certain platforms, the official MDict client seems
+to default to the DeviceID being the empty string.
 
 The 128-bit `reg_code` is then distributed to the user. This can be done in two ways:
 
