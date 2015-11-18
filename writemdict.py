@@ -72,8 +72,6 @@ def _mdx_encrypt(comp_block):
 	return comp_block[0:8] + _fast_encrypt(comp_block[8:], key)
 	
 def _salsa_encrypt(plaintext, dict_key):
-	if(type(dict_key) == str) == unicode):
-		dict_key = dict_key.encode("utf8")
 	assert(type(dict_key) == bytes)
 	assert(type(plaintext) == bytes)
 	encrypt_key = ripemd128(dict_key)
@@ -99,7 +97,7 @@ def encrypt_key(dict_key, **kwargs):
 	Generates a hexadecimal key for use with the official MDict program.
 
 	Parameters:
-	  dict_key: a unicode string, representing the dictionary password.
+	  dict_key: a bytes object, representing the dictionary password.
 
 	Keyword parameters:
 	  Exactly one of email and device_id should be specified. They should be unicode strings,
@@ -111,9 +109,9 @@ def encrypt_key(dict_key, **kwargs):
 	  with the same name and location as the mdx file but the extension changed to '.key'.
 
 	Example usage:
-		key = encrypt_key("password", email="username@example.com")
+		key = encrypt_key(b"password", email="username@example.com")
 
-		key = encrypt_key("password", device_id="12345678-9012-3456-7890-1234")
+		key = encrypt_key(b"password", device_id="12345678-9012-3456-7890-1234")
 	"""
 
 	if(("email" not in kwargs and "device_id" not in kwargs) or ("email" in kwargs and "device_id" in kwargs)):
@@ -125,7 +123,7 @@ def encrypt_key(dict_key, **kwargs):
 	else:
 		owner_info_digest = ripemd128(kwargs["device_id"].encode("ascii"))
 
-	dict_key_digest = ripemd128(dict_key.encode("utf_8"))
+	dict_key_digest = ripemd128(dict_key)
 	
 	s20 = Salsa20(key=owner_info_digest,IV=b"\x00"*8,rounds=8)
 	output_key = s20.encryptBytes(dict_key_digest)

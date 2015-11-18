@@ -100,11 +100,11 @@ writer = MDictWriter(d,
                      "This dictionary tests encryption",
                      encoding="utf16",
                      version="2.0",
-                     encrypt_key="abc",
+                     encrypt_key=b"abc",
                      register_by="email")
 writer.write(outfile)
 outfile.close()
-key = encrypt_key("abc", email="example@example.com")
+key = encrypt_key(b"abc", email="example@example.com")
 keyfile = io.open("example_output/encrypted_external_regcode.key", "w", encoding="ascii")
 keyfile.write(key)
 keyfile.close()
@@ -117,7 +117,7 @@ writer = MDictWriter(d,
                      "This dictionary tests encryption, with key supplied in dictionary header",
                      encoding="utf16",
                      version="2.0",
-                     encrypt_key="abc",
+                     encrypt_key=b"abc",
                      register_by="email",
                      user_email="example@example.com")
 writer.write(outfile)
@@ -134,11 +134,11 @@ writer = MDictWriter(d,
                      "This dictionary tests encryption, using the DeviceID method",
                      encoding="utf8",
                      version="2.0",
-                     encrypt_key="abc",
+                     encrypt_key=b"abc",
                      register_by="device_id")
 writer.write(outfile)
 outfile.close()
-key = encrypt_key("abc", device_id="")
+key = encrypt_key(b"abc", device_id="")
 keyfile = io.open("example_output/encrypted_external_regcode_device_id.key", "w", encoding="ascii")
 keyfile.write(key)
 keyfile.close()
@@ -152,7 +152,7 @@ writer = MDictWriter(d,
                      "This dictionary tests encryption using the DeviceID method, with key supplied in dictionary header",
                      encoding="utf8",
                      version="2.0",
-                     encrypt_key="abc",
+                     encrypt_key=b"abc",
                      register_by="device_id",
                      user_device_id="")
 writer.write(outfile)
