@@ -1,12 +1,25 @@
 # Introduction
 
-This is a description of version 2.0 of the MDX file format, used by the [MDict](http://www.octopus-studio.com/product.en.htm) dictionary software. The software is not open-source, nor is the file format openly specified, so the following description is based on reverse-engineering, and is likely incomplete and inaccurate in its details.
+This is a description of version 2.0 of the MDX and MDD file format, used by the [MDict](http://www.octopus-studio.com/product.en.htm) dictionary software. The software is not open-source, nor is the file format openly specified, so the following description is based on reverse-engineering, and is likely incomplete and inaccurate in its details.
 
 Most of the information comes from https://bitbucket.org/xwang/mdict-analysis. While xwang mostly focuses on being able to read this unknown format, I have added details that are necessary to also write MDX files.
 
 # Concepts
 
+MDX and MDD files are both designed to store an associative array of pairs (keyword, record).
+
+For MDX files, the information stored is typically a dictionary. The keyword and record are both (Unicode) strings, with the keyword being the headword for the dictionary entry, and the record giving a description of that word. An example of an MDX entry could be:
+
+- keyword: "reverse engineering"
+- record: "<i>noun:</i> a process of analyzing and studying an object or device, in order to understand its inner workings"
+
+MDD files are instead designed to store binary data. Typically, the keyword is a file path, and the record is the contents of that file. As an example, we may have:
+
+- keyword: "\image.png"
+- record: 0x89 0x50 0x4e 0x47 0x0d 0x0a 0x1a 0x0a...
 MDX files is designed to store a dictionary, i.e. a collection of pairs (keyword, record), which could be, for example, keyword="reverse engineering", record="<i>noun:</i> a process of analyzing and studying an object or device, in order to understand its inner workings".
+
+Typically, MDD files are associated with an MDX file of the same name (but with extension .mdx instead of .mdd), and contains resources to be included in the text of MDX files. For example, and entry of the MDX file might contain the HTML code `<img src="/images/image.png" />`, in which case the MDict software will look for the entry "\image.png" in the MDD file.
 
 # File structure
 
@@ -26,7 +39,7 @@ The basic file structure is a follows:
 | `header_str`  | varying | An XML string, encoded in UTF-16LE. See below for details. |
 | `checksum`    | 4 bytes | ADLER32 checksum of `header_str`, stored little-endian.  |
 
-The `header_str` consists of a single, XML tag `dictionary`, with various attributes. An example is (newlines added for clarity)
+The `header_str` consists of a single, XML tag `dictionary`, with various attributes. For MDX files, they look like this: (newlines added for clarity)
 
     <Dictionary 
     GeneratedByEngineVersion="2.0" 
@@ -45,6 +58,24 @@ The `header_str` consists of a single, XML tag `dictionary`, with various attrib
     RegisterBy="Email"
     RegCode="0102030405060708090A0B0C0D0E0F"/>
 
+For MDD files, we have instead:
+
+    <Library_Data 
+    GeneratedByEngineVersion="2.0" 
+    RequiredEngineVersion="2.0" 
+    Encrypted="2" 
+    Format=""
+    CreationDate="2015-01-01"
+    Compact="No"
+    Compat="No"
+    KeyCaseSensitive="No"
+    Description="This is a <i>test dictionary</i>."
+    Title="My dictionary"
+    DataSourceFormat="106"
+    StyleSheet=""
+    RegisterBy="Email"
+    RegCode="0102030405060708090A0B0C0D0E0F"/>
+
 The meaning of the attributes are explained below:
 
 | Attribute | Description |
@@ -52,11 +83,10 @@ The meaning of the attributes are explained below:
 |`GeneratedByEngineVersion`| The version of the file format. This document describes version 2.0. Apart from this, version 1.2 is also possible.|
 |`RequiredEngineVersion` | Presumably the lowest format version compatible with this version. |
 |`Encrypted` | An integer between 0 and 3 (inclusive). If the lower bit is set, indicates that the first part of the keyword section is encrypted, as described in the section [Keyword header encryption](#keyword-header-encryption). If the upper bit is set, indicates that the keyword index is encrypted, using the scheme described in [Keyword index encryption](#keyword-index-encryption). |
-|`Encoding`| The encoding used for text in the document. Possible values are "UTF-8", "UTF-16" (uses little-endian encoding), "GBK", and "Big5". |
-|`Format`| The format of the dictionary entry texts. Possible values include "Html" and "Text". |
+|`Encoding`| Only used for MDX files. The encoding used for text in the document. Possible values are "UTF-8", "UTF-16" (uses little-endian encoding), "GBK", and "Big5". For MDD files, the encoding used for the keywords (file paths) is always UTF-16, and the records consist of binary data. |
+|`Format`| The format of the dictionary entry texts. Possible values include "Html" and "Text". For MDD files, this must be empty. |
 |`CreationDate` | The date the dictionary was created. |
-|`Compact` | If this is "Yes", indicates the dictionary entries is in an Mdict-specific compact format, where certain string
-are replaced according to the scheme specified in `StyleSheet`. See the documentation for the official MdxBuilder client for details. |
+|`Compact` | If this is "Yes", indicates the dictionary entries is in an Mdict-specific compact format, where certain string are replaced according to the scheme specified in `StyleSheet`. See the documentation for the official MdxBuilder client for details. |
 |`Compat` | Appears to be a typo for `Compact`, which certain versions of the official Mdict client look for instead of `Compact`. |
 |`KeyCaseSensitive` | Indicates to the dictionary reader whether or not keys should be treated in a case-insensitive manner. |
 |`Description` | A description of the dictionary, which appears as the ":about" page in the official MDict client. |
@@ -182,7 +212,7 @@ Each record block is compressed (see "Compression"). After decompressing, they l
 
 | `decompress(rec_block[0])` | Length | |
 |----------------------------|--------|-----|
-| `record[0]`                | varying | The first record, null-terminated and encoded using `Encoding`. |
+| `record[0]`                | varying | The first record. If in an MDX file, this is null-terminated and encoded using `Encoding`. |
 | `record[1]`                | varying |...|
 | ...                        |   ...   |...|
 

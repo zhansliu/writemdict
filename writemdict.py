@@ -153,14 +153,18 @@ class MDictWriter(object):
 	             encrypt_key = None,
 	             register_by = None,
 	             user_email = None,
-				 user_device_id = None):
+	             user_device_id = None,
+	             is_mdd=False):
 		"""
 		Prepares the records. A subsequent call to write() writes 
-		the mdx file.
+		the mdx or mdd file.
 		   
-		d is a dictionary, with key, value both being (unicode) strings. 
-		  key is the headword, and value is a html string, with no final newline, 
-		  with the explanation for that headword.
+		d is a dictionary. The keys should be (unicode) strings. If used for an mdx
+		  file (the parameter is_mdd is False), then the values should also be 
+		  (unicode) strings, containing HTML snippets. If used to write an mdd
+		  file (the parameter is_mdd is True), then the values should be binary 
+		  strings (bytes objects), containing the raw data for the corresponding 
+		  file object.
 		
 		title is a (unicode) string, with the title of the dictionary
 		  description is a (unicode) string, with a short description of the
@@ -169,7 +173,19 @@ class MDictWriter(object):
 		block_size is the approximate number of bytes (uncompressed)
 		  before starting a new block.
 		
+		
 		encrypt_index is true if the keyword index should be encrypted.
+		
+		encoding is the character encoding to use in the files. Valid options are
+		  "utf8", "utf16", "gbk", and "big5". If used to write an mdd file (the
+		  parameter is_mdd is True), then this is ignored.
+		
+		compression_type is an integer specifying the compression type to use.
+		  Valid options are 0 (no compression), 1 (LZO compression), or 2 (gzip
+		  compression).
+		
+		version specifies the version of the file format to use. Recognized options are
+		  "2.0" and "1.2".
 		
 		encrypt_key should be a string, containing the dictionary key. If
 		  encrypt_key is None, no encryption will be applied. If encrypt_key is
@@ -188,10 +204,14 @@ class MDictWriter(object):
 			
 		user_device_id is ignored unless encrypt_key is not None and register_by
 		  is "device_id". If it is specified, an encrypted form of encrypt_key
-		  will be written into the dictionary header. The file can then be opened by
-		  anyone whose device ID (as determined by the MDict client) equals this
+		  will be written into the dictionary header. The file can then be opened 
+		  by anyone whose device ID (as determined by the MDict client) equals this
 		  value. If it is not specified, the MDict client will look for this
 		  encrypted key in a separate .key file.
+		
+		is_mdd is a boolean specifying whether the file written will be an mdx file
+		  or an mdd file. By default this is False, meaning that an mdd file will
+		  be written.
 		"""
 
 		self._num_entries = len(d)
@@ -207,25 +227,36 @@ class MDictWriter(object):
 		self._user_email = user_email
 		self._user_device_id = user_device_id
 		self._compression_type = compression_type
-		encoding = encoding.lower()
-		if encoding in ["utf8", "utf-8"]:
-			self._python_encoding = "utf_8"
-			self._encoding = "UTF-8"
-			self._encoding_length = 1
-		elif encoding in ["utf16", "utf-16"]:
-			self._python_encoding = "utf_16_le"
-			self._encoding = "UTF-16"
-			self._encoding_length = 2
-		elif encoding == "gbk":
-			self._python_encoding = "gbk"
-			self._encoding = "GBK"
-			self._encoding_length = 1
-		elif encoding == "big5":
-			self._python_encoding = "big5"
-			self._encoding = "BIG5"
-			self._encoding_length = 1
+		self._is_mdd = is_mdd
+		
+		# encoding is set to the string used in the mdx header.
+		# python_encoding is passed on to the python .encode()
+		# function to encode the data.
+		# encoding_length is the size of one unit of the encoding,
+		# used to calculate the length for keys in the key index.
+		if not is_mdd:
+			encoding = encoding.lower()
+			if encoding in ["utf8", "utf-8"]:
+				self._python_encoding = "utf_8"
+				self._encoding = "UTF-8"
+				self._encoding_length = 1
+			elif encoding in ["utf16", "utf-16"]:
+				self._python_encoding = "utf_16_le"
+				self._encoding = "UTF-16"
+				self._encoding_length = 2
+			elif encoding == "gbk":
+				self._python_encoding = "gbk"
+				self._encoding = "GBK"
+				self._encoding_length = 1
+			elif encoding == "big5":
+				self._python_encoding = "big5"
+				self._encoding = "BIG5"
+				self._encoding_length = 1
+			else:
+				raise ParameterError("Unknown encoding")
 		else:
-			raise ParameterError("Unknown encoding")
+			self._python_encoding="utf_16_le"
+			self._encoding_length=2
 		if version not in ["2.0", "1.2"]:
 			raise ParameterError("Unknown version")
 		self._version = version
@@ -256,7 +287,13 @@ class MDictWriter(object):
 			key_enc = key.encode(self._python_encoding)
 			key_null = (key+"\0").encode(self._python_encoding)
 			key_len = len(key_enc) // self._encoding_length
-			record_null = (record+"\0").encode(self._python_encoding) 
+			
+			# set record_null to a the the value of the record. If it's
+			# an MDX file, append an extra null character.
+			if self._is_mdd:
+				record_null = record
+			else:
+				record_null = (record+"\0").encode(self._python_encoding) 
 			self._offset_table.append(_OffsetTableEntry(
 			    key=key_enc,
 			    key_null=key_null,
@@ -429,32 +466,58 @@ class MDictWriter(object):
 			register_by_str = ""
 			regcode = ""
 		
-		header_string = (
-		"""<Dictionary """
-		"""GeneratedByEngineVersion="{version}" """ 
-		"""RequiredEngineVersion="{version}" """
-		"""Encrypted="{encrypted}" """
-		"""Encoding="{encoding}" """
-		"""Format="Html" """
-		"""CreationDate="{date.year}-{date.month}-{date.day}" """
-		"""Compact="No" """
-		"""Compat="No" """
-		"""KeyCaseSensitive="No" """
-		"""Description="{description}" """
-		"""Title="{title}" """
-		"""DataSourceFormat="106" """
-		"""StyleSheet="" """
-		"""RegisterBy="{register_by_str}" """
-		"""RegCode="{regcode}"/>\r\n\x00""").format(
-		    version = self._version,
-		    encrypted = encrypted,
-		    encoding = self._encoding, 
-		    date = datetime.date.today(), 
-		    description=escape(self._description, quote=True),
-		    title=escape(self._title, quote=True),
-			register_by_str=register_by_str,
-		    regcode=regcode
-		    ).encode("utf_16_le")
+		if not self._is_mdd:
+			header_string = (
+			"""<Dictionary """
+			"""GeneratedByEngineVersion="{version}" """ 
+			"""RequiredEngineVersion="{version}" """
+			"""Encrypted="{encrypted}" """
+			"""Encoding="{encoding}" """
+			"""Format="Html" """
+			"""CreationDate="{date.year}-{date.month}-{date.day}" """
+			"""Compact="No" """
+			"""Compat="No" """
+			"""KeyCaseSensitive="No" """
+			"""Description="{description}" """
+			"""Title="{title}" """
+			"""DataSourceFormat="106" """
+			"""StyleSheet="" """
+			"""RegisterBy="{register_by_str}" """
+			"""RegCode="{regcode}"/>\r\n\x00""").format(
+			    version = self._version,
+			    encrypted = encrypted,
+			    encoding = self._encoding, 
+			    date = datetime.date.today(), 
+			    description=escape(self._description, quote=True),
+			    title=escape(self._title, quote=True),
+			    register_by_str=register_by_str,
+			    regcode=regcode
+			).encode("utf_16_le")
+		else:
+			header_string = (
+			"""<Library_Data """
+			"""GeneratedByEngineVersion="{version}" """ 
+			"""RequiredEngineVersion="{version}" """
+			"""Encrypted="{encrypted}" """
+			"""Format="" """
+			"""CreationDate="{date.year}-{date.month}-{date.day}" """
+			"""Compact="No" """
+			"""Compat="No" """
+			"""KeyCaseSensitive="No" """
+			"""Description="{description}" """
+			"""Title="{title}" """
+			"""DataSourceFormat="106" """
+			"""StyleSheet="" """
+			"""RegisterBy="{register_by_str}" """
+			"""RegCode="{regcode}"/>\r\n\x00""").format(
+			    version = self._version,
+			    encrypted = encrypted, 
+			    date = datetime.date.today(), 
+			    description=escape(self._description, quote=True),
+			    title=escape(self._title, quote=True),
+			    register_by_str=register_by_str,
+			    regcode=regcode
+			).encode("utf_16_le")
 		f.write(struct.pack(b">L", len(header_string)))
 		f.write(header_string)
 		f.write(struct.pack(b"<L",zlib.adler32(header_string) & 0xffffffff))
