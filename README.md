@@ -60,7 +60,6 @@ publically document the Mdict file format. That project also includes a python l
 
 # To do
 
-* Add support for MDD files
 * Describe version 1.2 of the file format as well.
 
 
